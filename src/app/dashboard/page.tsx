@@ -14,12 +14,57 @@ export default function DashboardPage() {
     const stored: GeneratedPrompt[] = JSON.parse(localStorage.getItem("infulgen_prompts") || "[]");
     setPrompts(stored);
     if (stored.length > 0) setSelectedPrompt(stored[0]);
-    
+
     // Auto-collapse history on mobile
     if (typeof window !== "undefined" && window.innerWidth < 1024) {
       setIsHistoryOpen(false);
     }
   }, []);
+
+  // Polling: check pending prompts every 5 seconds
+  useEffect(() => {
+    const pendingPrompts = prompts.filter((p) => p.status === "pending");
+    if (pendingPrompts.length === 0) return;
+
+    const interval = setInterval(async () => {
+      const stored: GeneratedPrompt[] = JSON.parse(localStorage.getItem("infulgen_prompts") || "[]");
+      let hasUpdate = false;
+
+      for (const prompt of pendingPrompts) {
+        try {
+          const res = await fetch(`/api/prompts/${prompt.id}`);
+          const data = await res.json();
+
+          if (data.success && data.data) {
+            const idx = stored.findIndex((p) => p.id === prompt.id);
+            if (idx !== -1) {
+              if (data.data.status === "completed" && data.data.imageUrl) {
+                stored[idx].generatedImageUrl = data.data.imageUrl;
+                stored[idx].status = "completed";
+                hasUpdate = true;
+              } else if (data.data.status === "failed") {
+                stored[idx].status = "failed";
+                hasUpdate = true;
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Polling error:", err);
+        }
+      }
+
+      if (hasUpdate) {
+        localStorage.setItem("infulgen_prompts", JSON.stringify(stored));
+        setPrompts(stored);
+        if (selectedPrompt) {
+          const updatedSelected = stored.find((p) => p.id === selectedPrompt.id);
+          if (updatedSelected) setSelectedPrompt(updatedSelected);
+        }
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [prompts, selectedPrompt]);
 
   const imageUrl = selectedPrompt?.generatedImageUrl;
 
@@ -124,6 +169,16 @@ export default function DashboardPage() {
                                   <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-white/10">
                                     <img src={prompt.generatedImageUrl} alt="thumb" className="w-full h-full object-cover" />
                                   </div>
+                                ) : prompt.status === "pending" ? (
+                                  <div className="w-10 h-10 rounded-lg flex-shrink-0 border border-[#03e65b]/30 flex items-center justify-center bg-[#03e65b]/5">
+                                    <div className="w-4 h-4 border-2 border-[#03e65b] border-t-transparent rounded-full animate-spin" />
+                                  </div>
+                                ) : prompt.status === "failed" ? (
+                                  <div className="w-10 h-10 rounded-lg flex-shrink-0 border border-[#ff5d4b]/30 flex items-center justify-center bg-[#ff5d4b]/5">
+                                    <svg className="w-4 h-4 text-[#ff5d4b]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </div>
                                 ) : (
                                   <div className={`w-10 h-10 rounded-lg flex-shrink-0 border flex items-center justify-center transition-colors ${isActive ? 'bg-[#222222] border-white/10' : 'bg-[#151515] border-white/5'}`}>
                                     <svg className="w-4 h-4 text-[#666666]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -208,11 +263,19 @@ export default function DashboardPage() {
                 <div className="p-6 rounded-[24px] border border-white/10 bg-[#111111] hover:border-white/15 transition-colors shadow-2xl">
                   <div className="flex items-center justify-between mb-5">
                     <h3 className="text-white font-semibold text-lg tracking-wide">Output Preview</h3>
-                    {imageUrl && (
+                    {imageUrl ? (
                       <span className="text-[11px] font-bold text-[#03e65b] bg-[#03e65b]/10 border border-[#03e65b]/20 px-2.5 py-1 rounded-full uppercase tracking-wider">
                         Generated
                       </span>
-                    )}
+                    ) : selectedPrompt?.status === "pending" ? (
+                      <span className="text-[11px] font-bold text-[#ffc533] bg-[#ffc533]/10 border border-[#ffc533]/20 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                        Generating
+                      </span>
+                    ) : selectedPrompt?.status === "failed" ? (
+                      <span className="text-[11px] font-bold text-[#ff5d4b] bg-[#ff5d4b]/10 border border-[#ff5d4b]/20 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                        Failed
+                      </span>
+                    ) : null}
                   </div>
                   
                   <div className="aspect-[4/5] rounded-[16px] overflow-hidden border border-white/5 bg-[#0a0a0a] relative group">
@@ -226,6 +289,26 @@ export default function DashboardPage() {
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                       </>
+                    ) : selectedPrompt?.status === "pending" ? (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
+                        <div className="w-12 h-12 mb-4 rounded-full border-2 border-[#03e65b] border-t-transparent animate-spin" />
+                        <h4 className="text-white font-medium text-lg mb-2">Generating...</h4>
+                        <p className="text-sm text-[#777777] max-w-[250px]">
+                          Your visual is being crafted. This may take a few moments.
+                        </p>
+                      </div>
+                    ) : selectedPrompt?.status === "failed" ? (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
+                        <div className="w-12 h-12 mb-4 rounded-full bg-[#ff5d4b]/10 border border-[#ff5d4b]/20 flex items-center justify-center">
+                          <svg className="w-6 h-6 text-[#ff5d4b]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </div>
+                        <h4 className="text-white font-medium text-lg mb-2">Generation Failed</h4>
+                        <p className="text-sm text-[#777777] max-w-[250px]">
+                          Something went wrong. Please try again.
+                        </p>
+                      </div>
                     ) : (
                       <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-[url('/res/noise.png')] bg-repeat opacity-90">
                         <div className="absolute inset-0 bg-gradient-to-br from-[#ffffff]/5 to-transparent mix-blend-overlay" />
@@ -238,7 +321,7 @@ export default function DashboardPage() {
                         </div>
                         <h4 className="text-white font-medium text-lg relative z-10 mb-2">Awaiting Generation</h4>
                         <p className="text-sm text-[#777777] max-w-[250px] relative z-10">
-                          Configure your API key and build a prompt to see the magic happen here.
+                          Select a prompt from history or create a new one in the builder.
                         </p>
                       </div>
                     )}

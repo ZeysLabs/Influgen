@@ -912,6 +912,7 @@ export type GeneratedPrompt = {
   jsonPrompt: object;
   finalPrompt: string;
   generatedImageUrl?: string;
+  status?: "pending" | "completed" | "failed";
   createdAt: string;
 };
 

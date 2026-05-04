@@ -1,63 +1,74 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createPending } from "@/lib/store";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { prompt } = body;
+    const { promptId, category, selections, jsonPrompt, finalPrompt } = body;
 
-    if (!prompt || typeof prompt !== "string" || prompt.trim().length === 0) {
+    if (!promptId || !category || !finalPrompt) {
       return NextResponse.json(
-        { success: false, error: "Prompt is required." },
+        { success: false, error: "Missing required fields: promptId, category, finalPrompt" },
         { status: 400 }
       );
     }
 
-    const apiKey = process.env.IMAGE_GENERATION_API_KEY;
-    const provider = process.env.IMAGE_GENERATION_PROVIDER || "none";
-
-    if (!apiKey) {
+    const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
+    if (!n8nWebhookUrl) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "Image generation API key is not configured yet.",
-        },
-        { status: 200 }
+        { success: false, error: "N8N_WEBHOOK_URL is not configured." },
+        { status: 500 }
       );
     }
 
-    // TODO: Connect selected image generation provider here.
-    // Example integration skeleton:
-    //
-    // if (provider === "openai") {
-    //   const response = await fetch("https://api.openai.com/v1/images/generations", {
-    //     method: "POST",
-    //     headers: {
-    //       "Authorization": `Bearer ${apiKey}`,
-    //       "Content-Type": "application/json",
-    //     },
-    //     body: JSON.stringify({
-    //       model: "dall-e-3",
-    //       prompt: prompt,
-    //       n: 1,
-    //       size: "1024x1024",
-    //     }),
-    //   });
-    //   const data = await response.json();
-    //   if (data.data?.[0]?.url) {
-    //     return NextResponse.json({ success: true, imageUrl: data.data[0].url });
-    //   }
-    //   return NextResponse.json({ success: false, error: data.error?.message || "Generation failed." });
-    // }
+    createPending(promptId);
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: `Image generation provider "${provider}" is not implemented yet.`,
+    const appUrl = process.env.APP_URL || "http://localhost:3000";
+    const callbackUrl = `${appUrl}/api/webhook/n8n`;
+
+    const n8nResponse = await fetch(n8nWebhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(process.env.N8N_WEBHOOK_SECRET && {
+          "X-Webhook-Secret": process.env.N8N_WEBHOOK_SECRET,
+        }),
       },
-      { status: 200 }
-    );
+      body: JSON.stringify({
+        promptId,
+        category,
+        selections: selections || {},
+        jsonPrompt: jsonPrompt || {},
+        finalPrompt,
+        callbackUrl,
+      }),
+    });
+
+    if (!n8nResponse.ok) {
+      const errorText = await n8nResponse.text();
+      console.error("n8n webhook error:", errorText);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Failed to trigger n8n workflow.",
+          details: {
+            status: n8nResponse.status,
+            statusText: n8nResponse.statusText,
+            response: errorText.slice(0, 500),
+            url: n8nWebhookUrl,
+          },
+        },
+        { status: 502 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Generation started. Check dashboard for results.",
+      promptId,
+    });
   } catch (error) {
-    console.error("Image generation error:", error);
+    console.error("Generate image error:", error);
     return NextResponse.json(
       { success: false, error: "An unexpected error occurred." },
       { status: 500 }

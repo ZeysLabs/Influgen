@@ -67,39 +67,52 @@ export default function BuilderPage() {
     setGenerating(true);
     setGenerateError(null);
 
+    const promptId = `prompt-${Date.now()}`;
     const actualPrompt = isDirect ? directPrompt.trim() : finalPrompt;
 
-    let generatedImageUrl: string | undefined;
+    const newPrompt: GeneratedPrompt = {
+      id: promptId,
+      category: isDirect ? "Custom Prompt" : (promptCategories.find((c) => c.id === selectedCategory)?.title || selectedCategory || "Unknown"),
+      selections: isDirect ? {} : { ...selections },
+      jsonPrompt: isDirect ? { type: "direct", prompt: actualPrompt } : { ...jsonPrompt },
+      finalPrompt: actualPrompt,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+    };
+
+    // Save to localStorage immediately as pending
+    const existing = JSON.parse(localStorage.getItem("infulgen_prompts") || "[]");
+    existing.unshift(newPrompt);
+    localStorage.setItem("infulgen_prompts", JSON.stringify(existing));
 
     try {
       const res = await fetch("/api/generate-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: actualPrompt }),
+        body: JSON.stringify({
+          promptId,
+          category: newPrompt.category,
+          selections: newPrompt.selections,
+          jsonPrompt: newPrompt.jsonPrompt,
+          finalPrompt: actualPrompt,
+        }),
       });
       const data = await res.json();
 
-      if (data.success && data.imageUrl) {
-        generatedImageUrl = data.imageUrl;
-      } else {
-        setGenerateError(data.error || "Image generation failed.");
+      if (!data.success) {
+        // Update status to failed in localStorage
+        const updated = JSON.parse(localStorage.getItem("infulgen_prompts") || "[]");
+        const idx = updated.findIndex((p: GeneratedPrompt) => p.id === promptId);
+        if (idx !== -1) {
+          updated[idx].status = "failed";
+          localStorage.setItem("infulgen_prompts", JSON.stringify(updated));
+        }
+        setGenerateError(data.error || "Failed to start generation.");
       }
     } catch {
-      setGenerateError("Could not connect to image generation service.");
+      setGenerateError("Could not connect to generation service.");
     }
 
-    const newPrompt: GeneratedPrompt = {
-      id: `prompt-${Date.now()}`,
-      category: isDirect ? "Custom Prompt" : (promptCategories.find((c) => c.id === selectedCategory)?.title || selectedCategory || "Unknown"),
-      selections: isDirect ? {} : { ...selections },
-      jsonPrompt: isDirect ? { type: "direct", prompt: actualPrompt } : { ...jsonPrompt },
-      finalPrompt: actualPrompt,
-      generatedImageUrl,
-      createdAt: new Date().toISOString(),
-    };
-    const existing = JSON.parse(localStorage.getItem("infulgen_prompts") || "[]");
-    existing.unshift(newPrompt);
-    localStorage.setItem("infulgen_prompts", JSON.stringify(existing));
     setGenerating(false);
     router.push("/dashboard");
   };
@@ -213,7 +226,7 @@ export default function BuilderPage() {
                         disabled={!directPrompt.trim() || generating}
                         className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-[#03e65b] text-black font-semibold text-base hover:bg-[#02cc50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        {generating ? "Generating..." : "Generate Image"}
+                        {generating ? "Sending..." : "Generate Image"}
                     </button>
                   </div>
                 </motion.div>
@@ -329,7 +342,7 @@ export default function BuilderPage() {
                     disabled={selectedCount === 0 || generating}
                     className="w-full py-3.5 rounded-full bg-[#03e65b] text-black font-semibold text-base hover:bg-[#02cc50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    {generating ? "Generating..." : "Generate Image"}
+                    {generating ? "Sending..." : "Generate Image"}
                   </button>
                 </div>
               </div>
