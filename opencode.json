@@ -3,9 +3,16 @@
   "plugin": ["superpowers@git+https://github.com/obra/superpowers.git"],
   "mcp": {
     "supabase": {
-          "type": "remote",
-          "url": "https://mcp.supabase.com/mcp?project_ref=blntphhseloetnibywit",
-          "enabled": true
-        }
+      "type": "remote",
+      "url": "https://mcp.supabase.com/mcp?project_ref=blntphhseloetnibywit",
+      "enabled": true
+    },
+    "n8n-mcp": {
+      "type": "http",
+      "url": "http://5.175.136.114:5678/mcp-server/http",
+      "headers": {
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3ZDgzMTRiMy1kMDgzLTQ3NTMtYWIxZS1jMjFiZjIzMTM5NzIiLCJpc3MiOiJuOG4iLCJhdWQiOiJtY3Atc2VydmVyLWFwaSIsImp0aSI6IjE1OWYzNWEzLTViYzYtNDkzZC1hYzU2LWQxMGQ3MTYxODVlYiIsImlhdCI6MTc3NzkzMDg2Nn0.E_6ZWW1vR043HtBwwUGv8rvQxSHuWvi3TaVzrFbQvMA"
+      }
+    }
   }
 }

@@ -1,7 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-
 
 interface VideoShowcaseProps {
   title: string;
@@ -11,6 +11,12 @@ interface VideoShowcaseProps {
 }
 
 export default function VideoShowcase({ title, subtitle, reverse = false, videoSrc }: VideoShowcaseProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <section className="relative py-20 md:py-28 bg-black overflow-hidden">
       <div className={`max-w-6xl mx-auto px-6 flex flex-col ${reverse ? "md:flex-row-reverse" : "md:flex-row"} items-center gap-12 md:gap-16`}>
@@ -33,7 +39,7 @@ export default function VideoShowcase({ title, subtitle, reverse = false, videoS
           transition={{ duration: 0.7, delay: 0.1 }}
         >
           <div className="relative aspect-video rounded-[18px] overflow-hidden border border-white/10 bg-[#151515] shadow-2xl group cursor-pointer hover:border-white/20 transition-colors">
-            {videoSrc ? (
+            {videoSrc && mounted ? (
               <video
                 className="h-full w-full object-cover"
                 src={videoSrc}
@@ -45,7 +51,7 @@ export default function VideoShowcase({ title, subtitle, reverse = false, videoS
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-black/40">
                 <span className="text-sm text-white/50">
-                  Second video coming soon
+                  {videoSrc ? "Loading video..." : "Second video coming soon"}
                 </span>
               </div>
             )}
