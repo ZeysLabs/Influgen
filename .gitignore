@@ -41,5 +41,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-BUILD_CATEGORY.html
-SETINGS_PAGE.html
+docs/
+old_docs/

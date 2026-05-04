@@ -33,7 +33,14 @@ import {
 } from "lucide-react";
 
 /* ── Sidebar nav items ── */
-const navGroups = [
+interface NavItem {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  danger?: boolean;
+}
+
+const navGroups: { label: string; items: NavItem[] }[] = [
   {
     label: "Account",
     items: [
